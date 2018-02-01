@@ -89,6 +89,87 @@ def ismpvplaying():
             mpvactive=False
     return mpvactive
 
+def gmusicselect(phrase):
+    if 'all the songs'.lower() in str(phrase).lower():
+        os.system('echo "play_songs()\n" >> /home/pi/GassistPi/src/trackchange.py')
+        say("Playing all your songs")
+        play_songs()
+
+    if 'playlist'.lower() in str(phrase).lower():
+        if 'first'.lower() in str(phrase).lower() or 'one'.lower() in str(phrase).lower()  or '1'.lower() in str(phrase).lower():
+            os.system('echo "play_playlist(0)\n" >> /home/pi/GassistPi/src/trackchange.py')
+            say("Playing songs from your playlist")
+            play_playlist(0)
+        else:
+            say("Sorry I am unable to help")
+
+    if 'album'.lower() in str(phrase).lower():
+        if os.path.isfile("/home/pi/.gmusicalbumplayer.json"):
+            os.system("rm /home/pi/.gmusicalbumplayer.json")
+
+        req=str(phrase).lower()
+        idx=(req).find('album')
+        album=req[idx:]
+        album=album.replace("'}", "",1)
+        album = album.replace('album','',1)
+        if 'from'.lower() in req:
+            album = album.replace('from','',1)
+            album = album.replace('google music','',1)
+        else:
+            album = album.replace('google music','',1)
+
+        album=album.strip()
+        print(album)
+        albumstr=('"'+album+'"')
+        f = open('/home/pi/GassistPi/src/trackchange.py', 'a+')
+        f.write('play_album('+albumstr+')')
+        f.close()
+        say("Looking for songs from the album")
+        play_album(album)
+
+    if 'artist'.lower() in str(phrase).lower():
+        if os.path.isfile("/home/pi/.gmusicartistplayer.json"):
+            os.system("rm /home/pi/.gmusicartistplayer.json")
+
+        req=str(phrase).lower()
+        idx=(req).find('artist')
+        artist=req[idx:]
+        artist=artist.replace("'}", "",1)
+        artist = artist.replace('artist','',1)
+        if 'from'.lower() in req:
+            artist = artist.replace('from','',1)
+            artist = artist.replace('google music','',1)
+        else:
+            artist = artist.replace('google music','',1)
+
+        artist=artist.strip()
+        print(artist)
+        artiststr=('"'+artist+'"')
+        f = open('/home/pi/GassistPi/src/trackchange.py', 'a+')
+        f.write('play_artist('+artiststr+')')
+        f.close()
+        say("Looking for songs rendered by the artist")
+        play_artist(artist)
+
+
+def setmpvvolume(volumelevel):
+    with open('/home/pi/.mediavolume.json', 'w') as vol:
+        json.dump(volumelevel, vol)
+    mpvsetvol=os.system("echo '"+json.dumps({ "command": ["set_property", "volume",str(volumelevel)]})+"' | socat - /tmp/mpvsocket")
+
+
+def comparesetvolume(volumelevel):
+    print(volumelevel)
+    if volumelevel>100:
+        settingvollevel==100
+    elif volumelevel<0:
+        settingvollevel==0
+    else:
+        settingvollevel=volumelevel
+    setmpvvolume(settingvollevel)
+
+
+
 def process_device_actions(event, device_id):
     if 'inputs' in event.args:
         for i in event.args['inputs']:
@@ -254,7 +335,7 @@ def main():
                         YouTube_Autoplay(str(usrcmd).lower())
                     else:
                         YouTube_No_Autoplay(str(usrcmd).lower())
-                
+
             if 'stop'.lower() in str(usrcmd).lower():
                 stop()
             if 'radio'.lower() in str(usrcmd).lower():
@@ -292,14 +373,10 @@ def main():
                     if 'set'.lower() in str(usrcmd).lower() or 'change'.lower() in str(usrcmd).lower():
                         if 'hundred'.lower() in str(usrcmd).lower() or 'maximum' in str(usrcmd).lower():
                             settingvollevel=100
-                            with open('/home/pi/.mediavolume.json', 'w') as vol:
-                                json.dump(settingvollevel, vol)
-                            mpvsetvol=os.system("echo '"+json.dumps({ "command": ["set_property", "volume",str(settingvollevel)]})+"' | socat - /tmp/mpvsocket")
+                            setmpvvolume(settingvollevel)
                         elif 'zero'.lower() in str(usrcmd).lower() or 'minimum' in str(usrcmd).lower():
                             settingvollevel=0
-                            with open('/home/pi/.mediavolume.json', 'w') as vol:
-                                json.dump(settingvollevel, vol)
-                            mpvsetvol=os.system("echo '"+json.dumps({ "command": ["set_property", "volume",str(settingvollevel)]})+"' | socat - /tmp/mpvsocket")
+                            setmpvvolume(settingvollevel)
                         else:
                             for settingvollevel in re.findall(r"[-+]?\d*\.\d+|\d+", str(usrcmd)):
                                 with open('/home/pi/.mediavolume.json', 'w') as vol:
@@ -316,7 +393,6 @@ def main():
                             output=mpvgetvol.communicate()[0]
                             for oldvollevel in re.findall(r"[-+]?\d*\.\d+|\d+", str(output)):
                                 oldvollevel=int(oldvollevel)
-
                         if 'increase'.lower() in str(usrcmd).lower():
                             if any(char.isdigit() for char in str(usrcmd)):
                                 for changevollevel in re.findall(r'\b\d+\b', str(usrcmd)):
@@ -324,16 +400,7 @@ def main():
                             else:
                                 changevollevel=10
                             newvollevel= oldvollevel+ changevollevel
-                            print(newvollevel)
-                            if newvollevel>100:
-                                settingvollevel==100
-                            elif newvollevel<0:
-                                settingvollevel==0
-                            else:
-                                settingvollevel=newvollevel
-                            with open('/home/pi/.mediavolume.json', 'w') as vol:
-                                json.dump(settingvollevel, vol)
-                            mpvsetvol=os.system("echo '"+json.dumps({ "command": ["set_property", "volume",str(settingvollevel)]})+"' | socat - /tmp/mpvsocket")
+                            comparesetvolume(newvollevel)
                         if 'decrease'.lower() in str(usrcmd).lower() or 'reduce'.lower() in str(usrcmd).lower():
                             if any(char.isdigit() for char in str(usrcmd)):
                                 for changevollevel in re.findall(r'\b\d+\b', str(usrcmd)):
@@ -341,16 +408,7 @@ def main():
                             else:
                                 changevollevel=10
                             newvollevel= oldvollevel - changevollevel
-                            print(newvollevel)
-                            if newvollevel>100:
-                                settingvollevel==100
-                            elif newvollevel<0:
-                                settingvollevel==0
-                            else:
-                                settingvollevel=newvollevel
-                            with open('/home/pi/.mediavolume.json', 'w') as vol:
-                                json.dump(settingvollevel, vol)
-                            mpvsetvol=os.system("echo '"+json.dumps({ "command": ["set_property", "volume",str(settingvollevel)]})+"' | socat - /tmp/mpvsocket")
+                            comparesetvolume(newvollevel)
                     else:
                         say("Sorry I could not help you")
                 else:
@@ -365,128 +423,10 @@ def main():
                 if os.path.isfile("/home/pi/GassistPi/src/trackchange.py"):
                     os.system('rm /home/pi/GassistPi/src/trackchange.py')
                     os.system('echo "from actions import play_playlist\nfrom actions import play_songs\nfrom actions import play_album\nfrom actions import play_artist\n\n" >> /home/pi/GassistPi/src/trackchange.py')
-                    if 'all the songs'.lower() in str(usrcmd).lower():
-                        os.system('echo "play_songs()\n" >> /home/pi/GassistPi/src/trackchange.py')
-                        say("Playing all your songs")
-                        play_songs()
-
-                    if 'playlist'.lower() in str(usrcmd).lower():
-                        if 'first'.lower() in str(usrcmd).lower() or 'one'.lower() in str(usrcmd).lower()  or '1'.lower() in str(usrcmd).lower():
-                            os.system('echo "play_playlist(0)\n" >> /home/pi/GassistPi/src/trackchange.py')
-                            say("Playing songs from your playlist")
-                            play_playlist(0)
-                        else:
-                            say("Sorry I am unable to help")
-
-                    if 'album'.lower() in str(usrcmd).lower():
-                        if os.path.isfile("/home/pi/.gmusicalbumplayer.json"):
-                            os.system("rm /home/pi/.gmusicalbumplayer.json")
-
-                        req=str(usrcmd).lower()
-                        idx=(req).find('album')
-                        album=req[idx:]
-                        album=album.replace("'}", "",1)
-                        album = album.replace('album','',1)
-                        if 'from'.lower() in req:
-                            album = album.replace('from','',1)
-                            album = album.replace('google music','',1)
-                        else:
-                            album = album.replace('google music','',1)
-
-                        album=album.strip()
-                        print(album)
-                        albumstr=('"'+album+'"')
-                        f = open('/home/pi/GassistPi/src/trackchange.py', 'a+')
-                        f.write('play_album('+albumstr+')')
-                        f.close()
-                        say("Looking for songs from the album")
-                        play_album(album)
-
-                    if 'artist'.lower() in str(usrcmd).lower():
-                        if os.path.isfile("/home/pi/.gmusicartistplayer.json"):
-                            os.system("rm /home/pi/.gmusicartistplayer.json")
-
-                        req=str(usrcmd).lower()
-                        idx=(req).find('artist')
-                        artist=req[idx:]
-                        artist=artist.replace("'}", "",1)
-                        artist = artist.replace('artist','',1)
-                        if 'from'.lower() in req:
-                            artist = artist.replace('from','',1)
-                            artist = artist.replace('google music','',1)
-                        else:
-                            artist = artist.replace('google music','',1)
-
-                        artist=artist.strip()
-                        print(artist)
-                        artiststr=('"'+artist+'"')
-                        f = open('/home/pi/GassistPi/src/trackchange.py', 'a+')
-                        f.write('play_artist('+artiststr+')')
-                        f.close()
-                        say("Looking for songs rendered by the artist")
-                        play_artist(artist)
+                    gmusicselect(str(usrcmd))
                 else:
                     os.system('echo "from actions import play_playlist\nfrom actions import play_songs\nfrom actions import play_album\nfrom actions import play_artist\n\n" >> /home/pi/GassistPi/src/trackchange.py')
-                    if 'all the songs'.lower() in str(usrcmd).lower():
-                        os.system('echo "play_songs()\n" >> /home/pi/GassistPi/src/trackchange.py')
-                        say("Playing all your songs")
-                        play_songs()
-
-                    if 'playlist'.lower() in str(usrcmd).lower():
-                        if 'first'.lower() in str(usrcmd).lower() or 'one'.lower() in str(usrcmd).lower()  or '1'.lower() in str(usrcmd).lower():
-                            os.system('echo "play_playlist(0)\n" >> /home/pi/GassistPi/src/trackchange.py')
-                            say("Playing songs from your playlist")
-                            play_playlist(0)
-                        else:
-                            say("Sorry I am unable to help")
-
-                    if 'album'.lower() in str(usrcmd).lower():
-                        if os.path.isfile("/home/pi/.gmusicalbumplayer.json"):
-                            os.system("rm /home/pi/.gmusicalbumplayer.json")
-
-                        req=str(usrcmd).lower()
-                        idx=(req).find('album')
-                        album=req[idx:]
-                        album=album.replace("'}", "",1)
-                        album = album.replace('album','',1)
-                        if 'from'.lower() in req:
-                            album = album.replace('from','',1)
-                            album = album.replace('google music','',1)
-                        else:
-                            album = album.replace('google music','',1)
-
-                        album=album.strip()
-                        print(album)
-                        albumstr=('"'+album+'"')
-                        f = open('/home/pi/GassistPi/src/trackchange.py', 'a+')
-                        f.write('play_album('+albumstr+')')
-                        f.close()
-                        say("Looking for songs from the album")
-                        play_album(album)
-
-                    if 'artist'.lower() in str(usrcmd).lower():
-                        if os.path.isfile("/home/pi/.gmusicartistplayer.json"):
-                            os.system("rm /home/pi/.gmusicartistplayer.json")
-
-                        req=str(usrcmd).lower()
-                        idx=(req).find('artist')
-                        artist=req[idx:]
-                        artist=artist.replace("'}", "",1)
-                        artist = artist.replace('artist','',1)
-                        if 'from'.lower() in req:
-                            artist = artist.replace('from','',1)
-                            artist = artist.replace('google music','',1)
-                        else:
-                            artist = artist.replace('google music','',1)
-
-                        artist=artist.strip()
-                        print(artist)
-                        artiststr=('"'+artist+'"')
-                        f = open('/home/pi/GassistPi/src/trackchange.py', 'a+')
-                        f.write('play_artist('+artiststr+')')
-                        f.close()
-                        say("Looking for songs rendered by the artist")
-                        play_artist(artist)
+                    gmusicselect(str(usrcmd))
 
 
 
